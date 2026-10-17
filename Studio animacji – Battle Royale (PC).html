@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pl"><head><meta charset="utf-8"><title>Studio animacji – Battle Royale</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{color-scheme:dark;--bg:#12082b;--pn:#1e1046;--ac:#ffd23f;--ac2:#37e6ff;--tx:#f3eeff;--mu:#9a8cc8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:600 14px "Trebuchet MS",Verdana,sans-serif}
+h1{font:900 22px Impact,"Arial Black",sans-serif;margin:0;letter-spacing:1px;font-style:italic}
+header{display:flex;align-items:center;gap:16px;padding:10px 16px;background:var(--pn);border-bottom:3px solid var(--ac)}
+main{display:grid;grid-template-columns:230px 1fr 230px;gap:10px;padding:10px;height:calc(100vh - 62px)}
+.p{background:var(--pn);border-radius:6px;padding:10px;overflow:auto}
+.p h2{font:900 14px Impact,sans-serif;color:var(--ac);margin:0 0 8px}
+.it{display:flex;align-items:center;gap:8px;padding:6px;margin-bottom:5px;background:#2a1a5e;border:2px solid transparent;border-radius:4px;cursor:pointer}
+.it.on{border-color:var(--ac)}.sw{width:22px;height:22px;border-radius:3px;border:2px solid #0006}
+button,select{font:inherit;background:var(--ac);color:#1a0b3d;border:0;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:800}
+button.s{background:#3a2780;color:var(--tx)}button:focus-visible,.it:focus-visible{outline:2px solid var(--ac2)}
+.c{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas{width:100%;flex:1;min-height:0;background:#000;border-radius:6px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--pn);padding:8px;border-radius:6px}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--ac)}
+.kf{position:relative;height:14px;flex:1;min-width:150px;background:#2a1a5e;border-radius:3px}
+.kf i{position:absolute;top:1px;width:8px;height:12px;background:var(--ac);transform:translateX(-4px);border-radius:2px}
+small{color:var(--mu);font-weight:600}
+#blk{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;align-items:center;justify-content:center;text-align:center;padding:30px}
+@media(max-width:899px),(pointer:coarse){#blk{display:flex}main,header{display:none}}
+</style></head><body>
+<div id="blk"><div><h1>Tylko na PC</h1><p>To studio działa na komputerze z myszką. Otwórz ten link na PC.</p></div></div>
+<header><h1>STUDIO ANIMACJI</h1><small>Klatki kluczowe: ustaw postać, wybierz pozę, dodaj klatkę</small></header>
+<main>
+<div class="p"><h2>Skiny</h2><div id="sk"></div></div>
+<div class="c">
+<canvas id="cv" width="960" height="540"></canvas>
+<div class="bar"><button id="pl">▶ Odtwórz</button><button class="s" id="rs">⏮</button>
+<input type="range" id="tm" min="0" max="10" step="0.01" value="0"><span id="tl">0.0s</span></div>
+<div class="bar"><select id="po"></select><button id="ak">+ Klatka kluczowa</button><button class="s" id="dk">Usuń klatkę</button><div class="kf" id="kf"></div></div>
+<small>Przeciągnij postać myszką po scenie. Pozę i pozycję zapisuje klatka kluczowa; między klatkami postać płynnie się przesuwa.</small>
+</div>
+<div class="p"><h2>Kilofy</h2><div id="pk"></div><h2 style="margin-top:12px">Postacie</h2><div id="ac"></div><button class="s" id="na" style="width:100%;margin-top:6px">+ Dodaj postać</button><h2 style="margin-top:12px">Tło</h2><select id="bg" style="width:100%"><option value="0">Dzień na wyspie</option><option value="1">Burza</option><option value="2">Noc</option></select></div>
+</main>
+<script>
+const skins=[
+{n:'Neon Ranger',b:'#2fd6ff',l:'#1b3a8a',h:'#f2c9a0',a:'#ffd23f',hat:1},
+{n:'Cień Ninja',b:'#222',l:'#111',h:'#e8b98f',a:'#ff2e63',hat:2},
+{n:'Robo-Bot',b:'#aab4c8',l:'#5d6a85',h:'#cfd8ea',a:'#37e6ff',hat:3},
+{n:'Kapitan Piracki',b:'#8a2c2c',l:'#3b2a1a',h:'#d9a47a',a:'#ffd23f',hat:4},
+{n:'Kosmita Zed',b:'#52d66b',l:'#2a7a3c',h:'#8ff0a0',a:'#b04fff',hat:5},
+{n:'Lodowy Rycerz',b:'#bfe9ff',l:'#4f86c6',h:'#f0d2b8',a:'#ffffff',hat:6}];
+const picks=[{n:'Błyskawica',c:'#ffd23f'},{n:'Kryształ',c:'#37e6ff'},{n:'Lodowy',c:'#bfe9ff'},{n:'Ognisty',c:'#ff6a2b'},{n:'Klasyczny',c:'#b5b5b5'},{n:'Toksyczny',c:'#7bff3a'}];
+const poses=['Stój','Chodź','Taniec','Kop kilofem','Skok','Pozdrów'];
+let actors=[],sel=0,t=0,play=false,last=0;
+const cv=document.getElementById('cv'),g=cv.getContext('2d');
+function mk(){actors.push({s:actors.length%skins.length,p:actors.length%picks.length,x:200+actors.length*140,y:400,pose:0,kf:[]});sel=actors.length-1}
+mk();
+const $=id=>document.getElementById(id);
+poses.forEach((p,i)=>$('po').add(new Option(p,i)));
+function list(){
+$('sk').innerHTML=skins.map((s,i)=>`<div class="it ${actors[sel].s==i?'on':''}" tabindex=0 data-s="${i}"><span class="sw" style="background:${s.b}"></span>${s.n}</div>`).join('');
+$('pk').innerHTML=picks.map((s,i)=>`<div class="it ${actors[sel].p==i?'on':''}" tabindex=0 data-p="${i}"><span class="sw" style="background:${s.c}"></span>${s.n}</div>`).join('');
+$('ac').innerHTML=actors.map((a,i)=>`<div class="it ${sel==i?'on':''}" tabindex=0 data-a="${i}">Postać ${i+1}: ${skins[a.s].n}</div>`).join('');
+$('po').value=actors[sel].pose;kfs()}
+document.addEventListener('click',e=>{const d=e.target.closest('.it');if(!d)return;const a=actors[sel];
+if(d.dataset.s)a.s=+d.dataset.s;if(d.dataset.p)a.p=+d.dataset.p;if(d.dataset.a)sel=+d.dataset.a;list()});
+$('po').onchange=()=>{actors[sel].pose=+$('po').value};
+$('na').onclick=()=>{if(actors.length<6){mk();list()}};
+$('ak').onclick=()=>{const a=actors[sel];a.kf=a.kf.filter(k=>Math.abs(k.t-t)>.05);a.kf.push({t,x:a.x,y:a.y,pose:a.pose});a.kf.sort((u,v)=>u.t-v.t);kfs()};
+$('dk').onclick=()=>{const a=actors[sel];a.kf=a.kf.filter(k=>Math.abs(k.t-t)>.15);kfs()};
+function kfs(){$('kf').innerHTML=actors[sel].kf.map(k=>`<i style="left:${k.t*10}%"></i>`).join('')}
+$('pl').onclick=()=>{play=!play;last=performance.now();$('pl').textContent=play?'⏸ Pauza':'▶ Odtwórz'};
+$('rs').onclick=()=>{t=0;$('tm').value=0};
+$('tm').oninput=()=>{t=+$('tm').value;apply()};
+function apply(){actors.forEach(a=>{const k=a.kf;if(!k.length)return;let i=0;while(i<k.length-1&&k[i+1].t<=t)i++;
+const p=k[i],n=k[i+1];a.pose=p.pose;if(n&&t>p.t){const f=(t-p.t)/(n.t-p.t);a.x=p.x+(n.x-p.x)*f;a.y=p.y+(n.y-p.y)*f}else if(t>=p.t){a.x=p.x;a.y=p.y}});
+$('po').value=actors[sel].pose;$('tl').textContent=t.toFixed(1)+'s'}
+let drag=null;
+function pos(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]}
+cv.onmousedown=e=>{const[x,y]=pos(e);for(let i=actors.length-1;i>=0;i--){const a=actors[i];if(Math.abs(x-a.x)<45&&y>a.y-170&&y<a.y+10){sel=i;drag=[x-a.x,y-a.y];list();return}}};
+addEventListener('mousemove',e=>{if(!drag)return;const[x,y]=pos(e),a=actors[sel];a.x=x-drag[0];a.y=Math.min(500,Math.max(150,y-drag[1]))});
+addEventListener('mouseup',()=>drag=null);
+function limb(x,y,ang,len,w,c){g.save();g.translate(x,y);g.rotate(ang);g.fillStyle=c;g.fillRect(-w/2,0,w,len);g.restore()}
+function draw(a,tt,isSel){const s=skins[a.s],pk=picks[a.p],w=Math.sin(tt*8),d=Math.sin(tt*10);
+let la=.1*Math.sin(tt*2),ra=-la,ll=0,rl=0,by=0,sw=-.3;
+if(a.pose==1){la=w*.8;ra=-w*.8;ll=-w*.7;rl=w*.7;by=-Math.abs(w)*4}
+if(a.pose==2){la=-2.6+d*.6;ra=-2.6-d*.6;ll=d*.4;rl=-d*.4;by=-Math.abs(d)*10}
+if(a.pose==3){ra=-1.9+Math.sin(tt*9)*1.3;la=.2;sw=ra}
+if(a.pose==4){by=-Math.abs(Math.sin(tt*3))*70;la=-2.8;ra=-2.8;ll=.4;rl=-.4}
+if(a.pose==5){la=.1;ra=-2.5+Math.sin(tt*10)*.5}
+g.save();g.translate(a.x,a.y+by);
+g.fillStyle='#0005';g.beginPath();g.ellipse(0,-by+8,34,8,0,0,7);g.fill();
+limb(-10,-50,ll,50,16,s.l);limb(10,-50,rl,50,16,s.l);
+g.fillStyle=s.b;g.fillRect(-22,-110,44,64);g.fillStyle=s.a;g.fillRect(-22,-60,44,8);
+limb(-22,-104,la,48,14,s.b);
+g.save();g.translate(22,-104);g.rotate(ra);g.fillStyle=s.b;g.fillRect(-7,0,14,48);g.fillStyle=s.h;g.fillRect(-6,42,12,12);
+g.translate(0,50);g.rotate(Math.PI/2);g.fillStyle='#6b4a2a';g.fillRect(-3,-4,6,64);
+g.fillStyle=pk.c;g.beginPath();g.moveTo(-20,58);g.quadraticCurveTo(0,38,20,58);g.lineTo(18,64);g.quadraticCurveTo(0,48,-18,64);g.fill();
+g.strokeStyle='#0006';g.stroke();g.restore();
+g.fillStyle=s.h;g.fillRect(-18,-150,36,40);g.fillStyle='#111';g.fillRect(-10,-136,5,6);g.fillRect(5,-136,5,6);
+g.fillStyle=s.a;
+if(s.hat==1){g.fillRect(-20,-156,40,12);g.fillRect(-20,-146,50,5)}
+if(s.hat==2){g.fillStyle='#222';g.fillRect(-20,-156,40,16);g.fillStyle=s.a;g.fillRect(-20,-140,40,5)}
+if(s.hat==3){g.fillRect(-2,-170,4,16);g.fillStyle=s.b;g.fillRect(-20,-156,40,8)}
+if(s.hat==4){g.fillStyle='#111';g.fillRect(-26,-152,52,10);g.fillRect(-16,-164,32,14);g.fillStyle='#fff';g.fillRect(-4,-160,8,6)}
+if(s.hat==5){g.fillStyle=s.a;g.fillRect(-14,-166,6,14);g.fillRect(8,-166,6,14)}
+if(s.hat==6){g.fillStyle=s.b;g.beginPath();g.moveTo(-20,-142);g.lineTo(0,-172);g.lineTo(20,-142);g.fill()}
+if(isSel){g.strokeStyle='#ffd23f';g.lineWidth=2;g.setLineDash([6,4]);g.strokeRect(-40,-176,80,190);g.setLineDash([])}
+g.restore()}
+function bg(){const m=+$('bg').value,W=cv.width,H=cv.height;
+const gr=g.createLinearGradient(0,0,0,H);
+const c=[['#5cc8ff','#d7f3ff'],['#3a3f55','#7a8099'],['#05061a','#2a1a5e']][m];gr.addColorStop(0,c[0]);gr.addColorStop(1,c[1]);g.fillStyle=gr;g.fillRect(0,0,W,H);
+if(m==2){g.fillStyle='#fff';for(let i=0;i<50;i++)g.fillRect((i*197)%W,(i*83)%250,2,2)}
+g.fillStyle=m==2?'#1d4a2a':'#4cae4f';g.fillRect(0,420,W,120);g.fillStyle=m==2?'#16391f':'#3a8c3d';g.fillRect(0,420,W,8);
+g.fillStyle=m==1?'#555':'#2b8a3e';for(let i=0;i<6;i++){g.fillRect(100+i*160,350,14,70);g.beginPath();g.arc(107+i*160,340,34,0,7);g.fill()}
+if(m==1&&Math.random()<.04){g.fillStyle='#fff9';g.fillRect(0,0,W,H)}}
+function frame(n){const dt=Math.min((n-last)/1000,.1);last=n;
+if(play){t+=dt;if(t>10){t=0}$('tm').value=t;apply()}
+bg();[...actors].sort((a,b)=>a.y-b.y).forEach(a=>draw(a,n/1000,a===actors[sel]));requestAnimationFrame(frame)}
+list();requestAnimationFrame(frame);
+</script></body></html>
